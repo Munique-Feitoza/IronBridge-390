@@ -1,0 +1,26 @@
+hercules/mvs-tk5/
+.tools/
+*.o
+*.so
+ironbridge
+backend-emulator
+copybook-inspect
+unit-test
+transaction
+cobol-backend
+
+# Saídas geradas pelo zCOBOL/z390
+cobol/*.BAL
+cobol/*.ERR
+cobol/*.LOG
+cobol/*.LST
+cobol/*.MLC
+cobol/*.OBJ
+cobol/*.PRN
+cobol/*_ZC_LABELS.CPY
+
+# Saídas locais de execução e evidências temporárias
+*.sqlite3
+*.db
+*.log
+/tmp/

@@ -1,0 +1,17 @@
+name: IronBridge CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y build-essential gnucobol python3 curl
+      - name: Run full test suite
+        run: make test
+      - name: Inspect copybook
+        run: make schema

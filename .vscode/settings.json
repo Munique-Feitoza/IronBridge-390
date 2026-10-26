@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.cob": "cobol",
+    "*.cpy": "cobol",
+    "*.jcl": "jcl"
+  }
+}

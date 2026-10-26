@@ -1,0 +1,6 @@
+       01 TRANSACTION-REQUEST.
+          05 LEGACY-TRX       PIC X(16).
+          05 LEGACY-ACCOUNT   PIC X(12).
+          05 LEGACY-AMOUNT   PIC 9(9)V99 COMP-3.
+          05 LEGACY-CURRENCY PIC X(3).
+          05 LEGACY-OP       PIC X(5).

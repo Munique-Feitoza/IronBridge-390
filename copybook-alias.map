@@ -1,0 +1,6 @@
+# Mapeamento entre JSON e nomes do copybook alternativo.
+transaction_id=LEGACY-TRX
+account_id=LEGACY-ACCOUNT
+amount=LEGACY-AMOUNT
+currency=LEGACY-CURRENCY
+operation=LEGACY-OP

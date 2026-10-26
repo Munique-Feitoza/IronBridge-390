@@ -1,0 +1,41 @@
+services:
+  cobol:
+    build: .
+    command: ["./cobol-backend", "3901"]
+    expose: ["3901"]
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  gateway:
+    build: .
+    command: ["./ironbridge", "3900", "cobol", "3901", "copybook.cpy"]
+    depends_on:
+      cobol:
+        condition: service_healthy
+    expose: ["3900"]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3900"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  api:
+    build: .
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports: ["8080:8080"]
+    environment:
+      IRONBRIDGE_API_TOKEN: ""
+    volumes:
+      - ironbridge-data:/var/lib/ironbridge
+    command: ["python3", "api.py", "--host", "0.0.0.0", "--port", "8080", "--gateway-host", "gateway", "--gateway-port", "3900", "--db", "/var/lib/ironbridge/ironbridge.db"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  ironbridge-data:

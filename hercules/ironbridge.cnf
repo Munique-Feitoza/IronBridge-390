@@ -1,0 +1,8 @@
+* IronBridge-390 - perfil mínimo de laboratório Hercules
+MAINSIZE 64M
+NUMCPU 1
+MAXCPU 1
+ARCHLVL ESA/390
+CNSLPORT 3270
+OSTAILOR QUIET
+PANRATE 0

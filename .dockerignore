@@ -1,0 +1,10 @@
+.git
+.tools
+*.o
+*.so
+ironbridge
+backend-emulator
+unit-test
+copybook-inspect
+cobol-backend
+transaction
