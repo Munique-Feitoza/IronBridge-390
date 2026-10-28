@@ -24,3 +24,4 @@ cobol/*_ZC_LABELS.CPY
 *.db
 *.log
 /tmp/
+java/*.class

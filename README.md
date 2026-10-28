@@ -66,6 +66,18 @@ python3 client.py --port 3900 --transaction-id TRX000000000001 \
   --account-id 123456789012 --amount 125.37 --currency BRL --operation DEBIT
 ```
 
+O mesmo gateway também pode ser usado por um cliente Java, sem dependências
+externas:
+
+```bash
+make java
+java -cp java IronBridgeClient 127.0.0.1 3900 TRXJAVA00000001 \
+  123456789012 125.37 BRL DEBIT
+```
+
+Assim, Python e Java exercitam exatamente o mesmo contrato de entrada e a
+mesma ponte para o backend COBOL/legado.
+
 Para expor uma API REST real, mantenha o backend e o gateway ativos e inicie
 o adaptador HTTP:
 
@@ -102,6 +114,9 @@ Para testar automaticamente:
 ```bash
 make test
 ```
+
+O alvo `make test` também compila e testa o cliente Java contra o gateway e o
+backend locais.
 
 Testes adicionais de robustez:
 

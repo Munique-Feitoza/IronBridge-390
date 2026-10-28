@@ -5,7 +5,7 @@ LDLIBS ?= -pthread
 COMMON = protocol.c ebcdic.c packed_decimal.c copybook.c
 SCHEMA = copybook_parser.c
 
-.PHONY: all clean test asan-test hardening-test cobol cobol-backend schema unit-test api-test api-test-cobol load-test security-test hercules-check hercules-mvs-check hercules-jcl-check z390-test
+.PHONY: all clean test asan-test hardening-test cobol cobol-backend schema unit-test api-test api-test-cobol java java-test load-test security-test hercules-check hercules-mvs-check hercules-jcl-check z390-test
 
 COBC ?= cobc
 
@@ -29,6 +29,18 @@ test: all unit-test cobol-backend
 	./cobol_api_test.sh
 	./security_test.sh
 	./hardening_test.sh
+	$(MAKE) java-test
+
+java:
+	javac --release 17 -d java java/IronBridgeClient.java
+
+java-test: all java
+	./backend-emulator 13921 >/tmp/ironbridge-java-backend.log 2>&1 & backend_pid=$$!; \
+	./ironbridge 13920 127.0.0.1 13921 >/tmp/ironbridge-java-gateway.log 2>&1 & gateway_pid=$$!; \
+	trap 'kill $$gateway_pid $$backend_pid 2>/dev/null || true' EXIT; \
+	for i in $$(seq 1 20); do java -cp java IronBridgeClient 127.0.0.1 13920 TRXJAVA00000001 123456789012 125.37 BRL DEBIT >/tmp/ironbridge-java-response.json 2>/dev/null && break || sleep .05; done; \
+	grep -q '"status":"OK"' /tmp/ironbridge-java-response.json; \
+	echo "teste Java: OK"
 
 hardening-test: all
 	./hardening_test.sh
@@ -75,4 +87,4 @@ cobol-backend:
 	$(COBC) -x -free -o cobol-backend cobol/backend_server.cob cobol_socket_shim.c ebcdic.c
 
 clean:
-	rm -f ironbridge backend-emulator copybook-inspect unit-test transaction cobol-backend
+	rm -f ironbridge backend-emulator copybook-inspect unit-test transaction cobol-backend java/*.class
