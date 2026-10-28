@@ -13,13 +13,54 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#ifdef IB_ZOS
+static int parse_zos_ipv4(const char *input, struct in_addr *address) {
+    char ascii[256];
+    size_t length = strlen(input);
+    if (length == 0 || length >= sizeof ascii) return -1;
+    memcpy(ascii, input, length + 1);
+    for (size_t i = 0; i < length; ++i) {
+        if (!((ascii[i] >= '0' && ascii[i] <= '9') || ascii[i] == '.')) {
+            ib_ebcdic_to_ascii((const uint8_t *)input, ascii, length);
+            ascii[length] = 0;
+            break;
+        }
+    }
+    unsigned parts[4] = {0, 0, 0, 0};
+    unsigned count = 0;
+    unsigned part = 0;
+    int digits = 0;
+    for (size_t i = 0; i <= length; ++i) {
+        char c = ascii[i];
+        if (c >= '0' && c <= '9') {
+            if (part > 255 || ++digits > 3) return -1;
+            part = part * 10u + (unsigned)(c - '0');
+        } else if (c == '.' || c == 0) {
+            if (!digits || (c == 0 && i != length)) return -1;
+            if (part > 255 || (c == '.' && i == length)) return -1;
+            if (count >= 4) return -1;
+            parts[count++] = part;
+            part = 0;
+            digits = 0;
+            if (c == 0) {
+                int valid = count == 4;
+                if (!valid) return -1;
+                address->s_addr = htonl((parts[0] << 24) | (parts[1] << 16) |
+                                        (parts[2] << 8) | parts[3]);
+                return 0;
+            }
+        } else return -1;
+    }
+    return -1;
+}
+#endif
+
 static int connect_backend(const char *host, int port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a = {0};
     if (fd < 0) return -1;
     a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port);
 #ifdef IB_ZOS
-    a.sin_addr.s_addr = inet_addr((char *)host);
-    if (a.sin_addr.s_addr == (unsigned long)INADDR_NONE) { close(fd); return -1; }
+    if (parse_zos_ipv4(host, &a.sin_addr) != 0) { close(fd); return -1; }
     if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) { close(fd); return -1; }
 #else
     if (inet_pton(AF_INET, host, &a.sin_addr) != 1) { close(fd); return -1; }

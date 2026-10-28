@@ -83,5 +83,6 @@ int ib_read_frame(int fd, uint8_t *type, uint8_t *payload, uint16_t *length, siz
 int ib_copybook_load(const char *path, ib_copybook_t *schema, char *error, size_t error_cap);
 void ib_copybook_mapping_default(ib_field_map_t *map);
 int ib_copybook_mapping_load(const char *path, ib_field_map_t *map, char *error, size_t error_cap);
+void ib_ebcdic_to_ascii(const uint8_t *src, char *dst, size_t len);
 
 #endif
