@@ -1,5 +1,7 @@
 # IronBridge-390
 
+Licença: [MIT](LICENSE).
+
 **Versão: 1.0.0** — primeira versão demonstrável.
 
 Consulte as [notas de lançamento da v1.0.0](docs/release-notes-v1.0.0.md)
