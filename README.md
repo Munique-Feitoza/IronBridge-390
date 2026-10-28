@@ -33,6 +33,19 @@ GnuCOBOL. Em um ambiente mainframe, ele é substituído por `cobol/transaction.c
 O fonte COBOL inclui, em comentários, o adaptador TCP para ativação no
 GnuCOBOL; basta remover o bloco e ajustar a biblioteca de sockets disponível.
 
+### Verificação no USS do IBM Z XPlore
+
+O USS foi usado como uma segunda estação de teste. Ele possui IBM Semeru Java
+17, `javac`, XL C/C99 e `make`; o cliente Java foi compilado e executado nesse
+ambiente, e o backend/gateway C também foram compilados com as opções z/OS
+(`-qascii`, sockets e pthreads). A compilação no USS está validada.
+
+O teste ponta a ponta Java → gateway C → backend C ainda requer um adaptador de
+conversão para o argumento de endereço IPv4 recebido pelo runtime z/OS:
+`inet_addr()` rejeita o texto `127.0.0.1` nessa fronteira e o gateway retorna
+`503` antes de conectar ao backend. Portanto, a execução completa do serviço no
+USS permanece uma limitação conhecida até esse adaptador ser implementado.
+
 ## Copybook da transação
 
 ```cobol

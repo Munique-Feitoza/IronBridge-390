@@ -5,7 +5,7 @@ LDLIBS ?= -pthread
 COMMON = protocol.c ebcdic.c packed_decimal.c copybook.c
 SCHEMA = copybook_parser.c
 
-.PHONY: all clean test asan-test hardening-test cobol cobol-backend schema unit-test api-test api-test-cobol java java-test load-test security-test hercules-check hercules-mvs-check hercules-jcl-check z390-test
+.PHONY: all clean test asan-test hardening-test cobol cobol-backend schema unit-test api-test api-test-cobol java java-test zos-c-build load-test security-test hercules-check hercules-mvs-check hercules-jcl-check z390-test
 
 COBC ?= cobc
 
@@ -41,6 +41,12 @@ java-test: all java
 	for i in $$(seq 1 20); do java -cp java IronBridgeClient 127.0.0.1 13920 TRXJAVA00000001 123456789012 125.37 BRL DEBIT >/tmp/ironbridge-java-response.json 2>/dev/null && break || sleep .05; done; \
 	grep -q '"status":"OK"' /tmp/ironbridge-java-response.json; \
 	echo "teste Java: OK"
+
+# IBM z/OS XL C uses POSIX socket/thread feature switches and exposes
+# pthread_detach with a pointer argument. This target is run on USS.
+zos-c-build:
+	c99 -qascii -D_OE_SOCKETS -D_OPEN_THREADS -D_XOPEN_SOURCE_EXTENDED -DIB_ZOS -O2 -o backend-emulator backend_emulator.c protocol.c ebcdic.c packed_decimal.c copybook.c copybook_parser.c
+	c99 -qascii -D_OE_SOCKETS -D_OPEN_THREADS -D_XOPEN_SOURCE_EXTENDED -DIB_ZOS -O2 -o ironbridge gateway.c protocol.c ebcdic.c packed_decimal.c copybook.c copybook_parser.c
 
 hardening-test: all
 	./hardening_test.sh

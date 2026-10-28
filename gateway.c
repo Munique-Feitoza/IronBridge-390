@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <poll.h>
@@ -18,6 +17,11 @@ static int connect_backend(const char *host, int port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a = {0};
     if (fd < 0) return -1;
     a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port);
+#ifdef IB_ZOS
+    a.sin_addr.s_addr = inet_addr((char *)host);
+    if (a.sin_addr.s_addr == (unsigned long)INADDR_NONE) { close(fd); return -1; }
+    if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) { close(fd); return -1; }
+#else
     if (inet_pton(AF_INET, host, &a.sin_addr) != 1) { close(fd); return -1; }
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) { close(fd); return -1; }
@@ -32,6 +36,7 @@ static int connect_backend(const char *host, int port) {
         } else result = -1;
     }
     if (result < 0 || fcntl(fd, F_SETFL, flags) < 0) { close(fd); return -1; }
+#endif
     struct timeval tv = {3, 0};
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
@@ -49,11 +54,21 @@ typedef struct {
     gateway_config_t config;
 } client_job_t;
 
-static _Atomic unsigned long requests_total;
-static _Atomic unsigned long requests_ok;
-static _Atomic unsigned long requests_error;
-static _Atomic unsigned long backend_errors;
-static _Atomic unsigned long requests_inflight;
+static pthread_mutex_t counters_lock = PTHREAD_MUTEX_INITIALIZER;
+static unsigned long requests_total;
+static unsigned long requests_ok;
+static unsigned long requests_error;
+static unsigned long backend_errors;
+static unsigned long requests_inflight;
+
+static unsigned long counter_add(unsigned long *counter, long delta) {
+    unsigned long value;
+    pthread_mutex_lock(&counters_lock);
+    *counter = (unsigned long)((long)*counter + delta);
+    value = *counter;
+    pthread_mutex_unlock(&counters_lock);
+    return value;
+}
 #define IB_MAX_INFLIGHT 128u
 
 static int send_all(int fd, const void *buffer, size_t length) {
@@ -73,12 +88,12 @@ static void log_event(const char *event, const ib_request_t *request, const char
 }
 
 static void serve_client(int client, const gateway_config_t *config) {
-    atomic_fetch_add(&requests_total, 1);
-    unsigned long active = atomic_fetch_add(&requests_inflight, 1) + 1;
+    counter_add(&requests_total, 1);
+    unsigned long active = counter_add(&requests_inflight, 1);
     if (active > IB_MAX_INFLIGHT) {
         static const char busy[] = "{\"status\":\"ER\",\"code\":\"503\",\"message\":\"Gateway sobrecarregado\"}";
         (void)send_all(client, busy, sizeof busy - 1);
-        atomic_fetch_sub(&requests_inflight, 1); atomic_fetch_add(&requests_error, 1); return;
+        counter_add(&requests_inflight, -1); counter_add(&requests_error, 1); return;
     }
     struct timeval tv = {3, 0};
     setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
@@ -86,11 +101,11 @@ static void serve_client(int client, const gateway_config_t *config) {
     char line[2048]; size_t used = 0;
     while (used + 1 < sizeof line) {
         ssize_t n = recv(client, line + used, 1, 0);
-        if (n <= 0) { atomic_fetch_sub(&requests_inflight, 1); return; }
+        if (n <= 0) { counter_add(&requests_inflight, -1); return; }
         if (line[used++] == '\n') break;
     }
     line[used] = 0;
-    if (!used || line[used - 1] != '\n') { atomic_fetch_sub(&requests_inflight, 1); return; }
+    if (!used || line[used - 1] != '\n') { counter_add(&requests_inflight, -1); return; }
     ib_request_t request = {0}; char error[128]; uint8_t payload[IB_MAX_FRAME]; size_t payload_len;
     ib_response_t response = {0};
     if (ib_parse_json(line, &request, error, sizeof error) != 0) {
@@ -104,15 +119,15 @@ static void serve_client(int client, const gateway_config_t *config) {
         if (backend < 0 || ib_write_frame(backend, 1, payload, (uint16_t)payload_len) != 0 || ib_read_frame(backend, &type, reply, &len, sizeof reply) != 0 || type != 2 || ib_decode_response(reply, len, &response) != 0) {
             strcpy(response.status, "ER"); strcpy(response.code, "503"); strcpy(response.message, "Backend indisponível ou resposta inválida");
             strncpy(response.transaction_id, request.transaction_id, 16); response.transaction_id[16] = 0;
-            atomic_fetch_add(&backend_errors, 1);
+            counter_add(&backend_errors, 1);
         }
         if (backend >= 0) close(backend);
     }
     char json[512]; int out = ib_response_json(&response, json, sizeof json);
     if (out > 0) { send_all(client, json, (size_t)out); send_all(client, "\n", 1); }
-    if (strcmp(response.status, "OK") == 0) atomic_fetch_add(&requests_ok, 1); else atomic_fetch_add(&requests_error, 1);
+    if (strcmp(response.status, "OK") == 0) counter_add(&requests_ok, 1); else counter_add(&requests_error, 1);
     log_event("request.complete", &request, response.status);
-    atomic_fetch_sub(&requests_inflight, 1);
+    counter_add(&requests_inflight, -1);
 }
 
 static void *client_worker(void *arg) {
@@ -149,6 +164,10 @@ int main(int argc, char **argv) {
         client_job_t *job = malloc(sizeof *job); if (!job) { close(client); continue; }
         job->client = client; job->config = config;
         pthread_t thread; if (pthread_create(&thread, NULL, client_worker, job) != 0) { close(client); free(job); continue; }
+#ifdef IB_ZOS
+        pthread_detach(&thread);
+#else
         pthread_detach(thread);
+#endif
     }
 }

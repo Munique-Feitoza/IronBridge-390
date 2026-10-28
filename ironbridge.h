@@ -4,6 +4,23 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef IB_ZOS
+#include <sys/socket.h>
+#include <sys/types.h>
+int socket(int, int, int);
+int connect(int, const struct sockaddr *, socklen_t);
+int getsockopt(int, int, int, void *, socklen_t *);
+int setsockopt(int, int, int, const void *, socklen_t);
+int bind(int, const struct sockaddr *, socklen_t);
+int listen(int, int);
+int accept(int, struct sockaddr *, socklen_t *);
+ssize_t send(int, const void *, size_t, int);
+ssize_t recv(int, void *, size_t, int);
+const char *inet_ntop(int, const void *, char *, socklen_t);
+int inet_pton(int, const char *, void *);
+unsigned long inet_addr(char *);
+#endif
+
 #define IB_HEADER_SIZE 6u
 #define IB_REQUEST_PAYLOAD_SIZE 42u
 #define IB_RESPONSE_PAYLOAD_SIZE 85u
